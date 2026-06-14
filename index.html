@@ -93,8 +93,8 @@
     .calendar-day:hover{background:rgba(11,94,168,0.1);border-color:var(--primary)}
     .calendar-day.other-month{opacity:0.5}
     .calendar-day-number{font-weight:600;color:var(--primary);margin-bottom:6px;font-size:14px}
-    .calendar-event{font-size:10px;background:rgba(11,94,168,0.2);color:var(--primary);padding:3px 5px;border-radius:3px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-    .calendar-event:hover{background:rgba(11,94,168,0.4)}
+    .calendar-event{font-size:10px;background:rgba(11,94,168,0.2);color:var(--primary);padding:3px 5px;border-radius:3px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:all 0.2s}
+    .calendar-event:hover{background:rgba(11,94,168,0.4);transform:scale(1.05)}
     .nav-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;border-bottom:2px solid var(--input-border);padding-bottom:12px}
     .nav-tab{background:none;border:none;padding:8px 16px;color:var(--muted);cursor:pointer;font-weight:500;border-bottom:3px solid transparent;transition:all 0.2s;margin-bottom:-14px}
     .nav-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
@@ -269,8 +269,18 @@
       <div id="eventModal" class="modal">
         <div class="modal-container">
           <button class="close-btn" onclick="closeEventModal()">✕</button>
-          <h2 id="eventModalTitle">Событие</h2>
-          <div id="eventModalContent"></div>
+          <h2 id="eventModalTitle" style="color:var(--primary);margin-top:0">📌 Событие календаря</h2>
+          <div id="eventModalContent" style="margin-top:16px">
+            <div style="padding:16px;background:rgba(11,94,168,0.05);border-radius:8px;border-left:4px solid var(--primary)">
+              <p style="margin:0 0 8px 0"><strong>Дата:</strong> <span id="eventDate" style="color:var(--primary)"></span></p>
+              <p style="margin:0 0 8px 0"><strong>Н��звание:</strong> <span id="eventName"></span></p>
+              <p style="margin:0 0 8px 0"><strong>Тип:</strong> <span id="eventTypeDisplay"></span></p>
+              <p style="margin:0"><strong>Описание:</strong> <span id="eventDesc" style="display:block;margin-top:8px;color:var(--muted)"></span></p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button class="btn ghost" style="flex:1" onclick="closeEventModal()">Закрыть</button>
+          </div>
         </div>
       </div>
 
@@ -466,6 +476,9 @@
       document.getElementById('password').addEventListener('keypress', e => {
         if (e.key === 'Enter') login();
       });
+      
+      // Загружаем события календаря при инициализации
+      loadCalendarEvents();
     });
 
     // ===== ПЕРЕКЛЮЧЕНИЕ ОСНОВНЫХ РАЗДЕЛОВ =====
@@ -605,7 +618,24 @@
       currentPass = '';
     }
 
-    // ===== КАЛЕНДАРЬ - ИСПРАВЛЕНИЕ БАГА =====
+    // ===== ЗАГРУЗКА И ОТОБРАЖЕНИЕ СОБЫТИЙ КАЛЕНДАРЯ =====
+    async function loadCalendarEvents() {
+      try {
+        const response = await fetch(API + '/calendar/events');
+        if (response.ok) {
+          calendarEvents = await response.json();
+        }
+      } catch (e) {
+        // Используем локальные события если сервер недоступен
+        calendarEvents = [
+          { date: '2025-01-14', title: 'Контрольная работа', type: 'test', description: 'По математике' },
+          { date: '2025-01-25', title: 'День науки', type: 'holiday', description: 'Праздничный день' },
+          { date: '2025-02-10', title: 'Домашнее задание', type: 'assignment', description: 'Сдать эссе' }
+        ];
+      }
+    }
+
+    // ===== КАЛЕНДАРЬ - ИСПРАВЛЕННЫЙ БАГ =====
     function renderCalendar() {
       const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
       const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1).getDay();
@@ -628,7 +658,7 @@
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = currentCalendarYear + '-' + String(currentCalendarMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
         const events = calendarEvents.filter(e => e.date === dateStr);
-        const eventHtml = events.map(e => `<div class="calendar-event" onclick="showEventModal('${e.date}', '${e.title}')">${e.title}</div>`).join('');
+        const eventHtml = events.map(e => `<div class="calendar-event" onclick="showEventModal('${e.date}', '${e.title}', '${e.type}', '${e.description || ''}')">${e.title}</div>`).join('');
         html += `
           <div class="calendar-day" onclick="selectDate('${dateStr}')">
             <div class="calendar-day-number">${day}</div>
@@ -668,15 +698,24 @@
     }
 
     function selectDate(dateStr) {
-      alert('Выбрана дата: ' + dateStr);
       if (role === 'admin') {
         document.getElementById('eventDate').value = dateStr;
       }
     }
 
-    function showEventModal(date, title) {
-      document.getElementById('eventModalTitle').textContent = title;
-      document.getElementById('eventModalContent').innerHTML = `<p>Дата: ${date}</p><p>${title}</p>`;
+    function showEventModal(date, title, type, description) {
+      const typeMap = {
+        'assignment': '📝 Задание',
+        'test': '🧪 Тест',
+        'holiday': '🎉 Праздник',
+        'reminder': '⏰ Напоминание'
+      };
+      
+      document.getElementById('eventModalTitle').textContent = '📌 ' + title;
+      document.getElementById('eventDate').textContent = date;
+      document.getElementById('eventName').textContent = title;
+      document.getElementById('eventTypeDisplay').textContent = typeMap[type] || type;
+      document.getElementById('eventDesc').textContent = description || 'Нет описания';
       document.getElementById('eventModal').classList.add('active');
     }
 
@@ -704,6 +743,7 @@
           alert('Событие добавлено!');
           document.getElementById('eventDate').value = '';
           document.getElementById('eventTitle').value = '';
+          loadCalendarEvents();
           renderCalendar();
         }
       } catch (e) {
